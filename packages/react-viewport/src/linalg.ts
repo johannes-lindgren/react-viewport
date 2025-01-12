@@ -161,3 +161,5 @@ export const scaleAffine = (m: Mat2x3, s: number): Mat2x3 =>
 
 export const getScaling = (m: Mat2x3): Vec2 => vec2(m[a], m[d])
 export const getTranslation = (m: Mat2x3): Vec2 => vec2(m[tx], m[ty])
+
+export const origin: Vec2 = [0, 0]

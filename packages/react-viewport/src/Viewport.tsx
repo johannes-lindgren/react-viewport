@@ -7,7 +7,6 @@ import {
   useRef,
 } from 'react'
 import { useGesture } from '@use-gesture/react'
-import { Vec2_old } from './vector.ts'
 import { useAnimation } from './useAnimation.ts'
 import {
   add,
@@ -19,6 +18,7 @@ import {
   mult,
   mult2x3,
   neg,
+  origin,
   scale,
   scaleAffine,
   sub,
@@ -34,8 +34,8 @@ type Transformation = {
   scale: number
 }
 
-const styleTransformTranslate = (dr: Vec2_old) =>
-  `translate(${dr.x}px, ${dr.y}px)`
+const styleTransformTranslate = (dr: Vec2) =>
+  `translate(${dr[0]}px, ${dr[1]}px)`
 
 const styleTransformMat3x2 = (m: Mat2x3) => {
   const arr = [m[0], m[1], m[3], m[4], m[2], m[5]]
@@ -69,14 +69,14 @@ const Absolute = forwardRef<
   HTMLDivElement,
   {
     children: ReactNode
-    pos?: Vec2_old
+    pos?: Vec2
   }
 >((props, ref) => (
   <div
     ref={ref}
     style={{
       position: 'absolute',
-      transform: styleTransformTranslate(props.pos ?? { x: 0, y: 0 }),
+      transform: styleTransformTranslate(props.pos ?? origin),
       zIndex: 1000,
       left: 0,
       top: 0,
@@ -130,7 +130,6 @@ type ViewportApi = {
   getScreenMat: () => Mat2x3
   getWorldMat: () => Mat2x3
   getContentTransformation: () => Transformation
-  getViewportDim: () => Vec2_old
   setContentTransform: (transformation: Transformation) => void
 }
 
@@ -150,10 +149,7 @@ const Viewport = forwardRef<
     }
 
     const handleResize = () => {
-      viewportSizeRef.current = {
-        x: el.offsetWidth,
-        y: el.offsetHeight,
-      }
+      viewportSizeRef.current = vec2(el.offsetWidth, el.offsetHeight)
     }
 
     const resizeObserver = new ResizeObserver(handleResize)
@@ -170,10 +166,7 @@ const Viewport = forwardRef<
     scale: 1.0,
   })
 
-  const viewportSizeRef = useRef<Vec2_old>({
-    x: 0,
-    y: 0,
-  })
+  const viewportSizeRef = useRef<Vec2>(origin)
 
   const update = (_dt: number) => {
     const transformation = transformationRef.current
@@ -181,7 +174,7 @@ const Viewport = forwardRef<
 
     const currentPos = vec2(transformation.x, transformation.y)
     const currentScale = transformation.scale
-    const screenSize = vec2(viewportSize.x, viewportSize.y)
+    const screenSize = viewportSize
     const viewMat = createMat2x3({
       translation: scale(screenSize, 0.5),
     })
@@ -198,8 +191,10 @@ const Viewport = forwardRef<
     }
     // TODO this is just for debugging
     if (cameraWorldRef.current) {
-      cameraWorldRef.current.style.transform =
-        styleTransformTranslate(transformation)
+      cameraWorldRef.current.style.transform = styleTransformTranslate([
+        transformation.x,
+        transformation.y,
+      ])
     }
     // TODO this is just for debugging
     if (viewCenterRef.current) {
@@ -210,10 +205,7 @@ const Viewport = forwardRef<
 
   useImperativeHandle(apiRef, () => ({
     getScreenMat: () => {
-      const screenSize = vec2(
-        viewportSizeRef.current.x,
-        viewportSizeRef.current.y,
-      )
+      const screenSize = viewportSizeRef.current
       return createMat2x3({
         translation: scale(screenSize, 0.5),
       })
@@ -226,7 +218,6 @@ const Viewport = forwardRef<
       })
     },
     getContentTransformation: () => transformationRef.current,
-    getViewportDim: () => viewportSizeRef.current,
     setContentTransform: (transformation) => {
       transformationRef.current = transformation
     },
@@ -264,16 +255,16 @@ const Viewport = forwardRef<
         <Absolute ref={cameraWorldRef}>
           <Dot color="blue" radius={25} />
         </Absolute>
-        <Absolute pos={{ x: 0, y: 0 }}>
+        <Absolute pos={[0, 0]}>
           <Dot color="black" />
         </Absolute>
-        <Absolute pos={{ x: 1000, y: 0 }}>
+        <Absolute pos={[1000, 0]}>
           <Dot color="black" />
         </Absolute>
-        <Absolute pos={{ x: 0, y: 1000 }}>
+        <Absolute pos={[0, 1000]}>
           <Dot color="black" />
         </Absolute>
-        <Absolute pos={{ x: 1000, y: 1000 }}>
+        <Absolute pos={[1000, 1000]}>
           <Dot color="black" />
         </Absolute>
         {props.children}
@@ -354,13 +345,13 @@ const useGestureContainer = (
         tag: 'wheel'
         startTransform: Transformation
         startWorld: Mat2x3
-        clickScreenPos: Vec2_old
+        clickScreenPos: Vec2
       }
     | {
         tag: 'mouseDown'
         startTransform: Transformation
         startWorld: Mat2x3
-        clickScreenPos: Vec2_old
+        clickScreenPos: Vec2
       }
     | {
         tag: 'stale'
@@ -450,10 +441,7 @@ const useGestureContainer = (
           tag: 'mouseDown',
           startTransform: transformation,
           startWorld: viewportApi.current.getWorldMat(),
-          clickScreenPos: {
-            x: event.screenX,
-            y: event.screenY,
-          },
+          clickScreenPos: vec2(event.screenX, event.screenY),
         }
       },
       onMouseLeave: () => {
@@ -472,10 +460,7 @@ const useGestureContainer = (
           return
         }
         const mouseScreen: Vec2 = vec2(state.event.screenX, state.event.screenY)
-        const clickScreen = vec2(
-          gestureState.current.clickScreenPos.x,
-          gestureState.current.clickScreenPos.y,
-        )
+        const clickScreen = gestureState.current.clickScreenPos
         const drScreen = sub(mouseScreen, clickScreen)
         const worldStart = gestureState.current.startWorld
         const worldNew = translateAffine(worldStart, drScreen)
@@ -494,10 +479,7 @@ const useGestureContainer = (
           tag: 'wheel',
           startWorld: viewportApi.current.getWorldMat(),
           startTransform: transformation,
-          clickScreenPos: {
-            x: state.event.screenX,
-            y: state.event.screenY,
-          },
+          clickScreenPos: vec2(state.event.screenX, state.event.screenY),
         }
       },
       onWheel: (state) => {
