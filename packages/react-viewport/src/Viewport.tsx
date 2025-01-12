@@ -12,7 +12,6 @@ import {
   div,
   neg_old,
   origin,
-  scale_xy,
   sub_old,
   vec2_old,
   Vec2_old,
@@ -20,14 +19,12 @@ import {
 import { useAnimation } from './useAnimation.ts'
 import {
   add,
-  createMat2x2,
   createMat2x3,
-  getScale,
   getScaling,
   getTranslation,
   inverse,
   mult,
-  multAffine,
+  neg,
   scale,
   scaleAffine,
   sub,
@@ -261,60 +258,6 @@ const Viewport = forwardRef<
   )
 })
 
-type LinearTransform = (t: Transformation, p: Vec2_old) => Vec2_old
-const matMult: LinearTransform = (t, p) => add_old(scale_xy(p, t.scale), t)
-
-// TODO: for a linear transformation, we should only need to provide the vector and the matrix
-type ViewportTransform = (
-  p: Vec2_old,
-  t: Transformation,
-  viewportDim: Vec2_old,
-) => Vec2_old
-
-const contentFromViewport: ViewportTransform = (
-  pViewport,
-  t,
-  viewportDim: Vec2_old,
-) => div(sub_old(add_old(pViewport, div(viewportDim, -2)), t), t.scale)
-
-const viewportFromContent: ViewportTransform = (
-  pContent,
-  t,
-  viewportDim: Vec2_old,
-) => add_old(scale_xy(add_old(pContent, t), t.scale), div(viewportDim, 2))
-
-const zoomTo = (
-  newScale: number,
-  originView: Vec2_old,
-  matView: Transformation,
-): Transformation => {
-  const originWorld = matMult(matView, originView)
-  // console.log('originViewport', originViewport)
-  console.log('originWorld', originWorld)
-  // console.log('currentTransformation', currentTransformation)
-  const originWorldAfter = matMult(
-    {
-      scale: newScale,
-      x: 0,
-      y: 0,
-    },
-    originWorld,
-  )
-  const dr = sub_old(originWorldAfter, matView)
-  // const newTransform: Transformation = {
-  //   scale: newScale,
-  //   ...add(currentTransformation, dr),
-  // }
-  console.log('currentPosAfterScale', originWorldAfter)
-  return {
-    scale: newScale,
-    ...sub_old(originWorldAfter, scale_xy(originWorld, newScale)),
-  }
-}
-
-const clamp = (value: number, min: number, max: number) =>
-  Math.max(min, Math.min(max, value))
-
 const useGestureContainer = (
   viewportApi: React.MutableRefObject<ViewportApi | null>,
 ) => {
@@ -426,9 +369,15 @@ const useGestureContainer = (
         const matScreen = createMat2x3({
           translation: scale(screenSize, 0.5),
         })
-        const matCurrentScale = createMat2x3({
-          scale: currentScale,
-        })
+
+        // Transform with current position as origin
+        const matCurrentScale = translateAffine(
+          createMat2x3({
+            translation: currentPos,
+            scale: currentScale,
+          }),
+          neg(currentPos),
+        )
 
         const mouseView = mult(inverse(matScreen), mouseScreen)
         const mouseWorld = mult(inverse(matCurrentScale), mouseView)
@@ -444,14 +393,6 @@ const useGestureContainer = (
         const scaling = getScaling(newTransformation)[0]
         const translation = getTranslation(newTransformation)
         setTransformState(scaling, translation[0], translation[1])
-
-        // TODO remove logging
-        // console.log('relativeScale', relativeScale)
-        // console.log('mouseScreen', mouseScreen)
-        // console.log('mouseView', mouseView)
-        // console.log('mouseWorld', mouseWorld)
-        // console.log('mouseWorldAfter', mouseWoldAfter)
-        //   console.log('dr', dr)
       },
       onPinchEnd: (_state) => {
         gestureState.current = { tag: 'stale' }
