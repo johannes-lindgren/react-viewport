@@ -8,6 +8,11 @@
 - [ ] Viewport to have class, style, forwardRef, etc
 - [ ] hand cursor on panning
 - [ ] KeepScale
+- [ ] Controls:
+  - [ ] Zoom
+  - [ ] Reset Zoom
+  - [ ] Go to element
+  - [ ] Go to position
 
 ## Tests
 

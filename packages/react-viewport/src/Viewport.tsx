@@ -26,6 +26,7 @@ import {
   Vec2,
   vec2,
 } from './linalg.ts'
+import { Absolute, Dot } from './Absolute.tsx'
 
 type Transformation = {
   // Position in WORLD coordinates, non-negated
@@ -34,57 +35,13 @@ type Transformation = {
   scale: number
 }
 
-const styleTransformTranslate = (dr: Vec2) =>
+export const styleTransformTranslate = (dr: Vec2) =>
   `translate(${dr[0]}px, ${dr[1]}px)`
 
-const styleTransformMat3x2 = (m: Mat2x3) => {
+export const styleTransformMat3x2 = (m: Mat2x3) => {
   const arr = [m[0], m[1], m[3], m[4], m[2], m[5]]
   return `matrix(${arr.join(', ')})`
 }
-
-const Dot = forwardRef<
-  HTMLDivElement,
-  {
-    color: string
-    radius?: number
-    style?: React.CSSProperties
-  }
->((props, ref) => (
-  <div
-    ref={ref}
-    style={{
-      width: props.radius ?? 10,
-      height: props.radius ?? 10,
-      borderColor: props.color,
-      borderStyle: 'solid',
-      borderWidth: 2,
-      borderRadius: '50%',
-      transform: 'translate(-50%, -50%)',
-      ...props.style,
-    }}
-  />
-))
-
-const Absolute = forwardRef<
-  HTMLDivElement,
-  {
-    children: ReactNode
-    pos?: Vec2
-  }
->((props, ref) => (
-  <div
-    ref={ref}
-    style={{
-      position: 'absolute',
-      transform: styleTransformTranslate(props.pos ?? origin),
-      zIndex: 1000,
-      left: 0,
-      top: 0,
-    }}
-  >
-    {props.children}
-  </div>
-))
 
 export const GestureViewport: FunctionComponent<{
   children?: ReactNode
@@ -130,6 +87,8 @@ const Viewport = forwardRef<
 >((props, apiRef) => {
   const contentRef = useRef<HTMLDivElement>(null)
 
+  const viewportSizeRef = useRef<Vec2>(origin)
+
   useEffect(() => {
     //   TODO do not allow skipping
     const el = contentRef?.current
@@ -138,6 +97,7 @@ const Viewport = forwardRef<
     }
 
     const handleResize = () => {
+      console.log('resize')
       viewportSizeRef.current = vec2(el.offsetWidth, el.offsetHeight)
     }
 
@@ -147,23 +107,20 @@ const Viewport = forwardRef<
     return () => {
       resizeObserver.disconnect()
     }
-  }, [apiRef])
+  }, [])
 
-  const transformationRef = useRef<Transformation>({
+  const cameraRef = useRef<Transformation>({
     x: 0.0,
     y: 0.0,
     scale: 1.0,
   })
 
-  const viewportSizeRef = useRef<Vec2>(origin)
-
   const update = (_dt: number) => {
-    const transformation = transformationRef.current
-    const viewportSize = viewportSizeRef.current
+    const transformation = cameraRef.current
+    const screenSize = viewportSizeRef.current
 
     const currentPos = vec2(transformation.x, transformation.y)
     const currentScale = transformation.scale
-    const screenSize = viewportSize
     const viewMat = createMat2x3({
       translation: scale(screenSize, 0.5),
     })
@@ -200,15 +157,15 @@ const Viewport = forwardRef<
       })
     },
     getWorldMat: () => {
-      const t = transformationRef.current
+      const t = cameraRef.current
       return createMat2x3({
         translation: scale(neg(vec2(t.x, t.y)), t.scale),
         scale: t.scale,
       })
     },
-    getContentTransformation: () => transformationRef.current,
+    getContentTransformation: () => cameraRef.current,
     setContentTransform: (transformation) => {
-      transformationRef.current = transformation
+      cameraRef.current = transformation
     },
   }))
 
