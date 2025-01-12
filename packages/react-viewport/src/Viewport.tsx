@@ -7,8 +7,33 @@ import {
   useRef,
 } from 'react'
 import { useGesture } from '@use-gesture/react'
-import { add, div, neg, origin, scale, sub, vec2, Vec2 } from './vector.ts'
+import {
+  add_old,
+  div,
+  neg_old,
+  origin,
+  scale_xy,
+  sub_old,
+  vec2_old,
+  Vec2_old,
+} from './vector.ts'
 import { useAnimation } from './useAnimation.ts'
+import {
+  add,
+  createMat2x2,
+  createMat2x3,
+  getScale,
+  getScaling,
+  getTranslation,
+  inverse,
+  mult,
+  multAffine,
+  scale,
+  scaleAffine,
+  sub,
+  translateAffine,
+  vec2,
+} from './linalg.ts'
 
 type Transformation = {
   x: number
@@ -17,7 +42,8 @@ type Transformation = {
 }
 
 const styleTransformScale = (scale: number) => `scale(${scale})`
-const styleTransformTranslate = (dr: Vec2) => `translate(${dr.x}px, ${dr.y}px)`
+const styleTransformTranslate = (dr: Vec2_old) =>
+  `translate(${dr.x}px, ${dr.y}px)`
 
 const Dot = forwardRef<
   HTMLDivElement,
@@ -46,7 +72,7 @@ const Absolute = forwardRef<
   HTMLDivElement,
   {
     children: ReactNode
-    pos?: Vec2
+    pos?: Vec2_old
   }
 >((props, ref) => (
   <div
@@ -105,6 +131,7 @@ export const GestureContainer: FunctionComponent<{
 
 type ViewportApi = {
   getContentTransformation: () => Transformation
+  getViewportDim: () => Vec2_old
   setContentTransform: (transformation: Transformation) => void
 }
 
@@ -139,12 +166,12 @@ const Viewport = forwardRef<
   }, [apiRef])
 
   const transformationRef = useRef<Transformation>({
-    x: 0,
-    y: 0,
-    scale: 1,
+    x: 0.0,
+    y: 0.0,
+    scale: 1.0,
   })
 
-  const viewportSizeRef = useRef<Vec2>({
+  const viewportSizeRef = useRef<Vec2_old>({
     x: 0,
     y: 0,
   })
@@ -154,7 +181,7 @@ const Viewport = forwardRef<
     const viewportSize = viewportSizeRef.current
     const transformAttr = [
       styleTransformScale(transformation.scale),
-      styleTransformTranslate(neg(transformation)),
+      styleTransformTranslate(neg_old(transformation)),
       styleTransformTranslate(div(viewportSize, 2)),
     ].join(' ')
 
@@ -177,6 +204,7 @@ const Viewport = forwardRef<
 
   useImperativeHandle(apiRef, () => ({
     getContentTransformation: () => transformationRef.current,
+    getViewportDim: () => viewportSizeRef.current,
     setContentTransform: (transformation) => {
       transformationRef.current = transformation
     },
@@ -196,7 +224,6 @@ const Viewport = forwardRef<
         height: '100%',
         position: 'relative',
         overflow: 'hidden',
-        border: '1px solid black',
       }}
     >
       <Absolute ref={viewportCenterDotRef}>
@@ -234,6 +261,57 @@ const Viewport = forwardRef<
   )
 })
 
+type LinearTransform = (t: Transformation, p: Vec2_old) => Vec2_old
+const matMult: LinearTransform = (t, p) => add_old(scale_xy(p, t.scale), t)
+
+// TODO: for a linear transformation, we should only need to provide the vector and the matrix
+type ViewportTransform = (
+  p: Vec2_old,
+  t: Transformation,
+  viewportDim: Vec2_old,
+) => Vec2_old
+
+const contentFromViewport: ViewportTransform = (
+  pViewport,
+  t,
+  viewportDim: Vec2_old,
+) => div(sub_old(add_old(pViewport, div(viewportDim, -2)), t), t.scale)
+
+const viewportFromContent: ViewportTransform = (
+  pContent,
+  t,
+  viewportDim: Vec2_old,
+) => add_old(scale_xy(add_old(pContent, t), t.scale), div(viewportDim, 2))
+
+const zoomTo = (
+  newScale: number,
+  originView: Vec2_old,
+  matView: Transformation,
+): Transformation => {
+  const originWorld = matMult(matView, originView)
+  // console.log('originViewport', originViewport)
+  console.log('originWorld', originWorld)
+  // console.log('currentTransformation', currentTransformation)
+  const originWorldAfter = matMult(
+    {
+      scale: newScale,
+      x: 0,
+      y: 0,
+    },
+    originWorld,
+  )
+  const dr = sub_old(originWorldAfter, matView)
+  // const newTransform: Transformation = {
+  //   scale: newScale,
+  //   ...add(currentTransformation, dr),
+  // }
+  console.log('currentPosAfterScale', originWorldAfter)
+  return {
+    scale: newScale,
+    ...sub_old(originWorldAfter, scale_xy(originWorld, newScale)),
+  }
+}
+
 const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value))
 
@@ -249,7 +327,7 @@ const useGestureContainer = (
     viewportApi.current.setContentTransform({ scale, x, y })
   }
 
-  const translation = useRef<
+  const gestureState = useRef<
     | {
         tag: 'pinch'
         startTransform: Transformation
@@ -261,7 +339,7 @@ const useGestureContainer = (
     | {
         tag: 'mouseDown'
         startTransform: Transformation
-        clickScreenPos: Vec2
+        clickScreenPos: Vec2_old
       }
     | {
         tag: 'stale'
@@ -289,8 +367,24 @@ const useGestureContainer = (
     }
   }, [])
 
-  const applyDeltaTransform = (deltaTransform: Transformation) => {
-    setTransform({ scale: newScale, ...newPos })
+  const applyDeltaTransform = (relativeZoom: number, dr: Vec2_old) => {
+    if (
+      !viewportApi.current ||
+      !gestureState.current ||
+      (gestureState.current.tag !== 'mouseDown' &&
+        gestureState.current.tag !== 'wheel' &&
+        gestureState.current.tag !== 'pinch')
+    ) {
+      return
+    }
+    const { setContentTransform } = viewportApi.current
+
+    const { startTransform } = gestureState.current
+    const oldScale = startTransform.scale
+    const newScale = oldScale * relativeZoom
+
+    const newPos = add_old(startTransform, div(dr, newScale))
+    setContentTransform({ scale: newScale, ...newPos })
   }
 
   useGesture(
@@ -300,28 +394,67 @@ const useGestureContainer = (
           return
         }
         const transformation = viewportApi.current.getContentTransformation()
-        translation.current = {
+        console.log('onPinchStart', transformation)
+        gestureState.current = {
           tag: 'pinch',
-          startTransform: {
-            x: transformation.x,
-            y: transformation.y,
-            scale: transformation.scale,
-          },
+          startTransform: transformation,
         }
       },
       onPinch: (state) => {
-        if (translation.current.tag !== 'pinch') {
+        if (gestureState.current.tag !== 'pinch') {
           return
         }
-        const deltaScale = state.movement[0]
-        const oldScale = translation.current.startTransform.scale
-        const newScale = oldScale * deltaScale
+        if (!viewportApi.current) {
+          return
+        }
+        const relativeScale = state.movement[0]
 
-        const { startTransform } = translation.current
-        setTransformState(newScale, startTransform.x, startTransform.y)
+        const screenRect =
+          viewportElementRef.current?.getBoundingClientRect() ?? origin
+
+        const screenPos = vec2(screenRect.x, screenRect.y)
+        const mouseAbsolute = state.origin
+        const mouseScreen = sub(mouseAbsolute, screenPos)
+
+        // TODO save the matrices instead
+        const { startTransform } = gestureState.current
+        const currentPos = vec2(startTransform.x, startTransform.y)
+        const currentScale = startTransform.scale
+        const viewportDim = viewportApi.current.getViewportDim()
+
+        const screenSize = vec2(viewportDim.x, viewportDim.y)
+        const matScreen = createMat2x3({
+          translation: scale(screenSize, 0.5),
+        })
+        const matCurrentScale = createMat2x3({
+          scale: currentScale,
+        })
+
+        const mouseView = mult(inverse(matScreen), mouseScreen)
+        const mouseWorld = mult(inverse(matCurrentScale), mouseView)
+
+        const matWorldScaled = scaleAffine(matCurrentScale, relativeScale)
+
+        const mouseWorldScaled = mult(inverse(matWorldScaled), mouseView)
+
+        const dr = sub(mouseWorld, mouseWorldScaled)
+        const r = add(currentPos, dr)
+        const newTransformation = translateAffine(matWorldScaled, r)
+
+        const scaling = getScaling(newTransformation)[0]
+        const translation = getTranslation(newTransformation)
+        setTransformState(scaling, translation[0], translation[1])
+
+        // TODO remove logging
+        // console.log('relativeScale', relativeScale)
+        // console.log('mouseScreen', mouseScreen)
+        // console.log('mouseView', mouseView)
+        // console.log('mouseWorld', mouseWorld)
+        // console.log('mouseWorldAfter', mouseWoldAfter)
+        //   console.log('dr', dr)
       },
       onPinchEnd: (_state) => {
-        translation.current = { tag: 'stale' }
+        gestureState.current = { tag: 'stale' }
       },
       onMouseDown: ({ event }) => {
         if (!viewportApi.current) {
@@ -332,13 +465,9 @@ const useGestureContainer = (
         if (!event.ctrlKey) {
           return
         }
-        translation.current = {
+        gestureState.current = {
           tag: 'mouseDown',
-          startTransform: {
-            x: transformation.x,
-            y: transformation.y,
-            scale: transformation.scale,
-          },
+          startTransform: transformation,
           clickScreenPos: {
             x: event.screenX,
             y: event.screenY,
@@ -346,36 +475,31 @@ const useGestureContainer = (
         }
       },
       onMouseLeave: () => {
-        translation.current = { tag: 'stale' }
+        gestureState.current = { tag: 'stale' }
       },
       onMouseMove: (state) => {
         if (!viewportApi.current) {
           return
         }
-        // const transformation = viewportApi.current.getContentTransformation()
-        const setTransform = viewportApi.current.setContentTransform
         // TODO change to space and right-click
         if (!state.event.ctrlKey) {
-          translation.current = { tag: 'stale' }
+          gestureState.current = { tag: 'stale' }
           return
         }
-        if (translation.current.tag !== 'mouseDown') {
+        if (gestureState.current.tag !== 'mouseDown') {
           return
         }
-        const { startTransform } = translation.current
-        const oldScale = startTransform.scale
-        const newScale = startTransform.scale
-        const mousePosNow: Vec2 = {
+        const relativeScale = 1
+        const mousePosNow: Vec2_old = {
           x: state.event.screenX,
           y: state.event.screenY,
         }
-        const clickScreenPos = translation.current.clickScreenPos
-        const dr = sub(clickScreenPos, mousePosNow)
-        const newPos = add(startTransform, div(dr, newScale))
-        applyDeltaTransform({ scale: 0, ...dr })
+        const clickScreenPos = gestureState.current.clickScreenPos
+        const dr = sub_old(clickScreenPos, mousePosNow)
+        applyDeltaTransform(relativeScale, dr)
       },
       onMouseUp: () => {
-        translation.current = { tag: 'stale' }
+        gestureState.current = { tag: 'stale' }
       },
       // Wheel
       onWheelStart: () => {
@@ -383,13 +507,9 @@ const useGestureContainer = (
           return
         }
         const transformation = viewportApi.current.getContentTransformation()
-        translation.current = {
+        gestureState.current = {
           tag: 'wheel',
-          startTransform: {
-            x: transformation.x,
-            y: transformation.y,
-            scale: transformation.scale,
-          },
+          startTransform: transformation,
         }
       },
       onWheel: (state) => {
@@ -403,19 +523,19 @@ const useGestureContainer = (
         if (state.event.ctrlKey) {
           return
         }
-        if (translation.current.tag !== 'wheel') {
+        if (gestureState.current.tag !== 'wheel') {
           return
         }
         console.log('onWheel')
-        const dr = vec2(state.movement[0], state.movement[1])
+        const dr = vec2_old(state.movement[0], state.movement[1])
         const newPos = {
-          x: translation.current.startTransform.x + dr.x,
-          y: translation.current.startTransform.y + dr.y,
+          x: gestureState.current.startTransform.x + dr.x,
+          y: gestureState.current.startTransform.y + dr.y,
         }
         setTransformState(transformation.scale, newPos.x, newPos.y)
       },
       onWheelEnd: () => {
-        translation.current = { tag: 'stale' }
+        gestureState.current = { tag: 'stale' }
       },
     },
     {
