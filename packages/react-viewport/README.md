@@ -5,6 +5,9 @@
 - [ ] Update ref's style as side effect
 - [ ] memoize
 - [ ] Transformation bounds
+- [ ] Viewport to have class, style, forwardRef, etc
+- [ ] hand cursor on panning
+- [ ] KeepScale
 
 ## Tests
 

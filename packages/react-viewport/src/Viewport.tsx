@@ -1,4 +1,4 @@
-import {
+import React, {
   forwardRef,
   FunctionComponent,
   ReactNode,
@@ -86,42 +86,31 @@ const Absolute = forwardRef<
   </div>
 ))
 
-export const GestureContainer: FunctionComponent<{
+export const GestureViewport: FunctionComponent<{
   children?: ReactNode
 }> = (props) => {
   const viewportApi = useRef<ViewportApi>(null)
-  const { ref: gestureRef } = useGestureContainer(viewportApi)
 
+  return (
+    <Gesture viewportApi={viewportApi}>
+      <Viewport ref={viewportApi}>{props.children}</Viewport>
+    </Gesture>
+  )
+}
+
+const Gesture: FunctionComponent<{
+  children?: ReactNode
+  viewportApi: React.MutableRefObject<ViewportApi | null>
+}> = (props) => {
+  const { ref: gestureRef } = useGestureContainer(props.viewportApi)
   return (
     <div
       style={{
-        width: '100%',
-        height: '100%',
+        cursor: 'grab',
       }}
       ref={gestureRef}
     >
-      <Viewport ref={viewportApi}>
-        {props.children}
-        <div
-          style={{
-            // TODO use %, to not be dependent on the window size
-            // minWidth: `calc(${(1.5 * 100) / minScale}vw)`,
-            // minHeight: `calc(${(1.5 * 100) / minScale}vh)`,
-            padding: 100,
-            width: '1000px',
-            height: '1000px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            // TODO remove below
-            boxSizing: 'border-box',
-            boxShadow: 'inset 0 0 100px grey',
-            backgroundColor: 'lightsteelblue',
-          }}
-        >
-          <button>A worthless button...</button>
-        </div>
-      </Viewport>
+      {props.children}
     </div>
   )
 }
