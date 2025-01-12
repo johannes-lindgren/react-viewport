@@ -82,9 +82,13 @@ export const multAffine = (tM: Mat2x2, aM: Mat2x3): Mat2x3 =>
  */
 export const det = (m: Mat2x3): number => m[a] * m[d] - m[b] * m[c]
 
+/**
+ * The inverse of an affine matrix.
+ * The new 2x2 matrix is the inverse of the 2x2 matrix in the affine matrix.
+ * The translation is the negated multiplication of the inverse 2x2 matrix with the translation vector.
+ * @param m
+ */
 export const inverse = (m: Mat2x3): Mat2x3 =>
-  // The 2x2 matrix is the inverse of the 2x2 matrix
-  // (tx, ty) is the negated multiplication with the 2x2 matrix
   scale(
     [
       m[d],
@@ -94,6 +98,7 @@ export const inverse = (m: Mat2x3): Mat2x3 =>
       m[a],
       m[c] * m[tx] - m[a] * m[ty],
     ],
+    // The determinant is a shared factor
     1 / det(m),
   )
 

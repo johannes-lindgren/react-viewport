@@ -23,12 +23,14 @@ import {
   getScaling,
   getTranslation,
   inverse,
+  Mat2x3,
   mult,
   neg,
   scale,
   scaleAffine,
   sub,
   translateAffine,
+  Vec2,
   vec2,
 } from './linalg.ts'
 
@@ -258,6 +260,32 @@ const Viewport = forwardRef<
   )
 })
 
+/**
+ * Zoom in towards a given point
+ * @param worldMat the current world matrix
+ * @param zoomOrigin the point to zoom towards
+ * @param relativeScale the relative scale change. For example, if the current scale is 1.5 and the relative scale is 0.5, the new scale will be 0.75
+ */
+const zoomInTo = (
+  worldMat: Mat2x3,
+  zoomOrigin: Vec2,
+  relativeScale: number,
+): Mat2x3 => {
+  const worldTranslation = getTranslation(worldMat)
+
+  // World matrix without translation
+  const matCurrentScale = translateAffine(worldMat, neg(worldTranslation))
+
+  const mouseView = mult(worldMat, zoomOrigin)
+
+  const mouseWorldScaleOnly = mult(inverse(matCurrentScale), mouseView)
+  const matWorldScaled = scaleAffine(matCurrentScale, relativeScale)
+  const mouseWorldScaled = mult(inverse(matWorldScaled), mouseView)
+  const dr = sub(mouseWorldScaleOnly, mouseWorldScaled)
+  const r = add(worldTranslation, dr)
+  return translateAffine(matWorldScaled, r)
+}
+
 const useGestureContainer = (
   viewportApi: React.MutableRefObject<ViewportApi | null>,
 ) => {
@@ -366,32 +394,23 @@ const useGestureContainer = (
         const viewportDim = viewportApi.current.getViewportDim()
 
         const screenSize = vec2(viewportDim.x, viewportDim.y)
-        const matScreen = createMat2x3({
+        const screenMat = createMat2x3({
           translation: scale(screenSize, 0.5),
         })
+        const mouseView = mult(inverse(screenMat), mouseScreen)
 
         // Transform with current position as origin
-        const matCurrentScale = translateAffine(
-          createMat2x3({
-            translation: currentPos,
-            scale: currentScale,
-          }),
-          neg(currentPos),
-        )
+        const worldMat = createMat2x3({
+          translation: currentPos,
+          scale: currentScale,
+        })
+        const mouseWorld = mult(inverse(worldMat), mouseView)
 
-        const mouseView = mult(inverse(matScreen), mouseScreen)
-        const mouseWorld = mult(inverse(matCurrentScale), mouseView)
-
-        const matWorldScaled = scaleAffine(matCurrentScale, relativeScale)
-
-        const mouseWorldScaled = mult(inverse(matWorldScaled), mouseView)
-
-        const dr = sub(mouseWorld, mouseWorldScaled)
-        const r = add(currentPos, dr)
-        const newTransformation = translateAffine(matWorldScaled, r)
+        const newTransformation = zoomInTo(worldMat, mouseWorld, relativeScale)
 
         const scaling = getScaling(newTransformation)[0]
         const translation = getTranslation(newTransformation)
+
         setTransformState(scaling, translation[0], translation[1])
       },
       onPinchEnd: (_state) => {
