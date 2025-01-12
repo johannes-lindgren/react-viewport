@@ -63,19 +63,25 @@ export const mult = (m: Mat2x3, v: Vec2): Vec2 => [
   m[c] * v[0] + m[d] * v[1] + m[ty],
 ]
 
-// TOOD new name
 /**
- * Multiply a 2x2 matrix by the 2x2 matrix in an affine matrix
+ * Multipliy two affine matrices
+ * @param m1
+ * @param m2
  */
-export const multAffine = (tM: Mat2x2, aM: Mat2x3): Mat2x3 =>
-  mat2x3(
-    tM[0] * aM[a] + tM[1] * aM[c],
-    tM[0] * aM[b] + tM[1] * aM[d],
-    aM[tx],
-    tM[2] * aM[a] + tM[3] * aM[c],
-    tM[2] * aM[b] + tM[3] * aM[d],
-    aM[ty],
-  )
+export const mult2x3 = (m1: Mat2x3, m2: Mat2x3): Mat2x3 => {
+  const [a, b, tx, c, d, ty] = m1
+  const [e, f, ux, g, h, uy] = m2
+
+  // Perform matrix multiplication
+  return [
+    a * e + b * g, // New 'a'
+    a * f + b * h, // New 'b'
+    a * ux + b * uy + tx, // New 'tx'
+    c * e + d * g, // New 'c'
+    c * f + d * h, // New 'd'
+    c * ux + d * uy + ty, // New 'ty'
+  ]
+}
 
 /**
  * The determinant of the 2x2 matrix
@@ -113,6 +119,7 @@ export const sub = (a: Vec2, b: Vec2): Vec2 => [a[0] - b[0], a[1] - b[1]]
 
 /**
  * Cretae a 2x3 matrix that describes scaling and translation
+ * @param scale
  * @param options
  */
 export const createMat2x3 = ({

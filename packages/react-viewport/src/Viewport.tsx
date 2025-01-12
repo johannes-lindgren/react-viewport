@@ -25,6 +25,7 @@ import {
   inverse,
   Mat2x3,
   mult,
+  mult2x3,
   neg,
   scale,
   scaleAffine,
@@ -43,6 +44,11 @@ type Transformation = {
 const styleTransformScale = (scale: number) => `scale(${scale})`
 const styleTransformTranslate = (dr: Vec2_old) =>
   `translate(${dr.x}px, ${dr.y}px)`
+
+const styleTransformMat3x2 = (m: Mat2x3) => {
+  const arr = [m[0], m[1], m[3], m[4], m[2], m[5]]
+  return `matrix(${arr.join(', ')})`
+}
 
 const Dot = forwardRef<
   HTMLDivElement,
@@ -178,27 +184,61 @@ const Viewport = forwardRef<
   const update = (_dt: number) => {
     const transformation = transformationRef.current
     const viewportSize = viewportSizeRef.current
+
+    const currentPos = vec2(transformation.x, transformation.y)
+    const currentScale = transformation.scale
+    const screenSize = vec2(viewportSize.x, viewportSize.y)
+    const viewMat = createMat2x3({
+      translation: scale(screenSize, 0.5),
+    })
+    const worldMat = createMat2x3({
+      translation: scale(neg(currentPos), currentScale),
+      scale: currentScale,
+    })
+    const mat = mult2x3(worldMat, viewMat)
+
+    const transformAttrMat = styleTransformMat3x2(mat)
     const transformAttr = [
-      styleTransformScale(transformation.scale),
       styleTransformTranslate(neg_old(transformation)),
+      styleTransformScale(transformation.scale),
       styleTransformTranslate(div(viewportSize, 2)),
     ].join(' ')
+    if (Math.random() < 0.01) {
+      console.log('pos', currentPos)
+      console.log('worldMat', styleTransformMat3x2(worldMat))
+      console.log('viewMat', styleTransformMat3x2(viewMat))
+      console.log('mat', styleTransformMat3x2(mat))
+    }
+    // console.log('transformAttr', transformAttrMat)
+    // console.log('transformAttr', transformAttr)
+
+    const useMat = true
 
     if (!contentRef.current) {
       return
     }
     // TODO this is just for debugging
-    if (currentPositionDotRef.current) {
-      currentPositionDotRef.current.style.transform =
+    if (cameraWorldRef.current) {
+      // cameraWorldRef.current.style.transform = styleTransformMat3x2([
+      //   worldMat[0],
+      //   worldMat[1],
+      //   -worldMat[2],
+      //   worldMat[3],
+      //   worldMat[4],
+      //   -worldMat[5],
+      // ])
+
+      // With scaling
+      cameraWorldRef.current.style.transform =
         styleTransformTranslate(transformation)
     }
     // TODO this is just for debugging
-    if (viewportCenterDotRef.current) {
-      viewportCenterDotRef.current.style.transform = styleTransformTranslate(
-        div(viewportSize, 2),
-      )
+    if (viewCenterRef.current) {
+      viewCenterRef.current.style.transform = styleTransformMat3x2(viewMat)
     }
-    contentRef.current.style.transform = transformAttr
+    contentRef.current.style.transform = useMat
+      ? transformAttrMat
+      : transformAttr
   }
 
   useImperativeHandle(apiRef, () => ({
@@ -211,8 +251,8 @@ const Viewport = forwardRef<
 
   useAnimation(update)
 
-  const currentPositionDotRef = useRef<HTMLDivElement>(null)
-  const viewportCenterDotRef = useRef<HTMLDivElement>(null)
+  const cameraWorldRef = useRef<HTMLDivElement>(null)
+  const viewCenterRef = useRef<HTMLDivElement>(null)
 
   return (
     <div
@@ -225,7 +265,7 @@ const Viewport = forwardRef<
         overflow: 'hidden',
       }}
     >
-      <Absolute ref={viewportCenterDotRef}>
+      <Absolute ref={viewCenterRef}>
         <Dot color="red" radius={15} />
       </Absolute>
       <div
@@ -235,12 +275,11 @@ const Viewport = forwardRef<
           position: 'relative',
           width: '100%',
           height: '100%',
-          // transform: transformAttr,
         }}
       >
         {/*  DEBUG  */}
-        <Absolute ref={currentPositionDotRef}>
-          <Dot color="blue" radius={15} />
+        <Absolute ref={cameraWorldRef}>
+          <Dot color="blue" radius={25} />
         </Absolute>
         <Absolute pos={origin}>
           <Dot color="black" />
