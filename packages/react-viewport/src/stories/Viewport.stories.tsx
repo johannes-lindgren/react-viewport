@@ -53,7 +53,7 @@ const ExampleContent = () => (
       gridTemplateRows: `repeat(auto-fill, ${gridSize}px)`,
     }}
   >
-    {new Array(100).fill(0).map((_, i) => (
+    {new Array((width / gridSize) ** 2).fill(0).map((_, i) => (
       <GridCell key={i} />
     ))}
     <Absolute pos={[200, 200]}>
@@ -64,11 +64,10 @@ const ExampleContent = () => (
 
 const Template = (args) => (
   <div
-    id="root"
+    id="template"
     style={{
-      display: 'flex',
-      overflow: 'hidden',
-      border: `1px solid black`,
+      width: '100vw',
+      height: '100vh',
     }}
   >
     <GestureViewport {...args} />
