@@ -11,6 +11,7 @@ import { useAnimation } from './useAnimation.ts'
 import {
   add,
   createMat2x3,
+  div,
   getScaling,
   getTranslation,
   inverse,
@@ -18,6 +19,7 @@ import {
   mult,
   mult2x3,
   neg,
+  origin,
   scale,
   scaleAffine,
   sub,
@@ -31,8 +33,7 @@ import * as CssTransform from './cssTransform.tsx'
 
 export type Camera = {
   // Position in coordinates
-  x: number
-  y: number
+  position: Vec2
   // Zoom
   scale: number
 }
@@ -84,17 +85,16 @@ const Viewport = forwardRef<
   const viewportSizeRef = useElementSizeRef(contentRef)
 
   const cameraRef = useRef<Camera>({
-    x: 0.0,
-    y: 0.0,
+    position: origin,
     scale: 1.0,
   })
 
   const update = (_dt: number) => {
-    const transformation = cameraRef.current
+    const cam = cameraRef.current
     const screenSize = viewportSizeRef.current
 
-    const currentPos = vec2(transformation.x, transformation.y)
-    const currentScale = transformation.scale
+    const currentPos = cam.position
+    const currentScale = cam.scale
     const viewMat = createMat2x3({
       translation: scale(screenSize, 0.5),
     })
@@ -111,10 +111,9 @@ const Viewport = forwardRef<
     }
     // TODO this is just for debugging
     if (cameraWorldRef.current) {
-      cameraWorldRef.current.style.transform = CssTransform.translate([
-        transformation.x,
-        transformation.y,
-      ])
+      cameraWorldRef.current.style.transform = CssTransform.translate(
+        cam.position,
+      )
     }
     // TODO this is just for debugging
     if (viewCenterRef.current) {
@@ -133,7 +132,7 @@ const Viewport = forwardRef<
     getWorldMat: () => {
       const t = cameraRef.current
       return createMat2x3({
-        translation: scale(neg(vec2(t.x, t.y)), t.scale),
+        translation: scale(neg(t.position), t.scale),
         scale: t.scale,
       })
     },
@@ -230,8 +229,7 @@ const useGestureContainer = (
     const translation = getTranslation(mat)
     viewportApi.current.setContentTransform({
       scale: scaling,
-      x: -translation[0] / scaling,
-      y: -translation[1] / scaling,
+      position: div(translation, -scaling),
     })
   }
 
@@ -247,8 +245,7 @@ const useGestureContainer = (
     const translation = getTranslation(mat)
     viewportApi.current.setContentTransform({
       scale: scaling,
-      x: translation[0],
-      y: translation[1],
+      position: translation,
     })
   }
 
@@ -333,7 +330,7 @@ const useGestureContainer = (
 
         // Transform with current position as origin
         const worldMat = createMat2x3({
-          translation: vec2(startTransform.x, startTransform.y),
+          translation: startTransform.position,
           scale: startTransform.scale,
         })
         const mouseWorld = mult(inverse(worldMat), mouseView)

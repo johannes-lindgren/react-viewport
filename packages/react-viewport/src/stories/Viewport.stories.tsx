@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from '@storybook/react'
 
 import { GestureViewport } from '../Viewport.tsx'
 import { Absolute, Circle } from '../Absolute.tsx'
-import React from 'react'
 import { Grid } from './Grid.tsx'
 
 // More on how to set up stories at: https://storybook.js.org/docs/writing-stories#default-export
