@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
-import { GestureViewport } from '../Viewport.tsx'
-import { Absolute, Circle } from '../Absolute.tsx'
+import { GestureViewport, KeepScale } from '../Viewport.tsx'
+import { DebugView, Circle, Box } from '../DebugView.tsx'
 import { Grid } from './Grid.tsx'
 
 // More on how to set up stories at: https://storybook.js.org/docs/writing-stories#default-export
@@ -31,21 +31,32 @@ const ExampleContent = () => (
     }}
   >
     <Grid columns={10} rows={10} cellSize={100} />
-    <Absolute pos={[0, 0]}>
+    <DebugView pos={[0, 0]}>
       <Circle radius={10} color="black" backgroundColor="currentcolor" />
-    </Absolute>
-    <Absolute pos={[1000, 0]}>
+    </DebugView>
+    <DebugView pos={[1000, 0]}>
       <Circle radius={10} color="black" backgroundColor="currentcolor" />
-    </Absolute>
-    <Absolute pos={[0, 1000]}>
+    </DebugView>
+    <DebugView pos={[0, 1000]}>
       <Circle radius={10} color="black" backgroundColor="currentcolor" />
-    </Absolute>
-    <Absolute pos={[1000, 1000]}>
+    </DebugView>
+    <DebugView pos={[1000, 1000]}>
       <Circle radius={10} color="black" backgroundColor="currentcolor" />
-    </Absolute>
-    <Absolute pos={[200, 200]}>
-      <button>A worthless button...</button>
-    </Absolute>
+    </DebugView>
+    <DebugView pos={[200, 200]}>
+      <button>A button...</button>
+      <KeepScale>
+        <Box>A button that keeps its size!</Box>
+      </KeepScale>
+      <KeepScale>
+        <Box>
+          KeepScale:
+          <KeepScale>
+            <Box>Nested KeepScale</Box>
+          </KeepScale>
+        </Box>
+      </KeepScale>
+    </DebugView>
   </div>
 )
 

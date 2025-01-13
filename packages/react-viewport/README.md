@@ -15,6 +15,7 @@
   - [ ] Go to position
 - [ ] Minimap
 - [ ] https://github.com/pmndrs/use-gesture/issues/641
+- [ ] Springiness when transitioning
 
 ## Tests
 

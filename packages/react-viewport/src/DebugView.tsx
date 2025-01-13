@@ -1,4 +1,4 @@
-import React, { forwardRef, ReactNode } from 'react'
+import React, { forwardRef, FunctionComponent, ReactNode } from 'react'
 import { origin, Vec2 } from './linalg.ts'
 import * as CssTransform from './cssTransform.tsx'
 
@@ -24,7 +24,7 @@ export const Circle = forwardRef<
   />
 ))
 
-export const Absolute = forwardRef<
+export const DebugView = forwardRef<
   HTMLDivElement,
   {
     children: ReactNode
@@ -44,3 +44,21 @@ export const Absolute = forwardRef<
     {props.children}
   </div>
 ))
+
+export const Box: FunctionComponent<
+  {
+    children: ReactNode
+  } & React.CSSProperties
+> = ({ children, ...style }) => (
+  <div
+    style={{
+      padding: 10,
+      backgroundColor: 'white',
+      border: '1px solid black',
+      borderRadius: 5,
+      ...style,
+    }}
+  >
+    {children}
+  </div>
+)

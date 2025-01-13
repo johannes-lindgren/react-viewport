@@ -1,9 +1,13 @@
 import React, {
+  createContext,
   forwardRef,
   FunctionComponent,
   ReactNode,
+  useCallback,
+  useContext,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
 } from 'react'
 import { useGesture } from '@use-gesture/react'
@@ -27,9 +31,35 @@ import {
   Vec2,
   vec2,
 } from './linalg.ts'
-import { Absolute, Circle } from './Absolute.tsx'
+import { DebugView, Circle } from './DebugView.tsx'
 import { useElementSizeRef } from './useElementSizeRef.tsx'
 import * as CssTransform from './cssTransform.tsx'
+
+const ViewportContext = createContext<ViewportApi | undefined>(undefined)
+
+export const KeepScale: FunctionComponent<{
+  children?: ReactNode
+}> = (props) => {
+  const viewportApi = useContext(ViewportContext)
+
+  const wrapperRef = useRef<HTMLDivElement>(null)
+
+  const update = useCallback(() => {
+    const scale = viewportApi?.getContentTransformation().scale ?? 1
+    wrapperRef.current?.style.setProperty(
+      'transform',
+      CssTransform.scale(1 / scale),
+    )
+  }, [viewportApi])
+
+  useAnimation(update)
+
+  return (
+    <ViewportContext.Provider value={undefined}>
+      <div ref={wrapperRef}>{props.children}</div>
+    </ViewportContext.Provider>
+  )
+}
 
 export type Camera = {
   // Position in coordinates
@@ -71,7 +101,7 @@ type ViewportApi = {
   getScreenMat: () => Mat2x3
   getWorldMat: () => Mat2x3
   getContentTransformation: () => Camera
-  setContentTransform: (transformation: Camera) => void
+  setCamera: (transformation: Camera) => void
 }
 
 const Viewport = forwardRef<
@@ -122,7 +152,7 @@ const Viewport = forwardRef<
     contentRef.current.style.transform = transformAttrMat
   }
 
-  useImperativeHandle(apiRef, () => ({
+  const createStore = (): ViewportApi => ({
     getScreenMat: () => {
       const screenSize = viewportSizeRef.current
       return createMat2x3({
@@ -137,10 +167,15 @@ const Viewport = forwardRef<
       })
     },
     getContentTransformation: () => cameraRef.current,
-    setContentTransform: (transformation) => {
+    setCamera: (transformation) => {
       cameraRef.current = transformation
     },
-  }))
+  })
+
+  const store = useMemo(createStore, [])
+
+  // Inject as prop
+  useImperativeHandle(apiRef, createStore)
 
   useAnimation(update)
 
@@ -148,45 +183,47 @@ const Viewport = forwardRef<
   const viewCenterRef = useRef<HTMLDivElement>(null)
 
   return (
-    <div
-      id="viewport"
-      style={{
-        touchAction: 'none',
-        width: '100%',
-        height: '100%',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      <Absolute ref={viewCenterRef}>
-        <Absolute>
-          <Circle color="red" radius={25} />
-        </Absolute>
-        <Absolute>
-          <Circle
-            color="red"
-            radius={3}
-            position="absolute"
-            backgroundColor="currentcolor"
-          />
-        </Absolute>
-      </Absolute>
+    <ViewportContext.Provider value={store}>
       <div
-        id="content"
-        ref={contentRef}
+        id="viewport"
         style={{
-          position: 'relative',
+          touchAction: 'none',
           width: '100%',
           height: '100%',
+          position: 'relative',
+          overflow: 'hidden',
         }}
       >
-        {/*  DEBUG  */}
-        <Absolute ref={cameraWorldRef}>
-          <Circle color="blue" radius={25} />
-        </Absolute>
-        {props.children}
+        <DebugView ref={viewCenterRef}>
+          <DebugView>
+            <Circle color="red" radius={25} />
+          </DebugView>
+          <DebugView>
+            <Circle
+              color="red"
+              radius={3}
+              position="absolute"
+              backgroundColor="currentcolor"
+            />
+          </DebugView>
+        </DebugView>
+        <div
+          id="content"
+          ref={contentRef}
+          style={{
+            position: 'relative',
+            width: '100%',
+            height: '100%',
+          }}
+        >
+          {/*  DEBUG  */}
+          <DebugView ref={cameraWorldRef}>
+            <Circle color="blue" radius={25} />
+          </DebugView>
+          {props.children}
+        </div>
       </div>
-    </div>
+    </ViewportContext.Provider>
   )
 })
 
@@ -227,7 +264,7 @@ const useGestureContainer = (
     }
     const scaling = getScaling(mat)[0]
     const translation = getTranslation(mat)
-    viewportApi.current.setContentTransform({
+    viewportApi.current.setCamera({
       scale: scaling,
       position: div(translation, -scaling),
     })
@@ -243,13 +280,13 @@ const useGestureContainer = (
     }
     const scaling = getScaling(mat)[0]
     const translation = getTranslation(mat)
-    viewportApi.current.setContentTransform({
+    viewportApi.current.setCamera({
       scale: scaling,
       position: translation,
     })
   }
 
-  // TODO only incude matrices here
+  // TODO only include matrices here
   const gestureState = useRef<
     | {
         tag: 'pinch'
