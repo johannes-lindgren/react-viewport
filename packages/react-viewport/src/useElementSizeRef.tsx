@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import { origin, vec2, Vec2 } from './linalg.ts'
 
-export const useElementSize = (elementRef: React.RefObject<HTMLElement>) => {
+export const useElementSizeRef = (elementRef: React.RefObject<HTMLElement>) => {
   const viewportSizeRef = useRef<Vec2>(origin)
 
   useEffect(() => {

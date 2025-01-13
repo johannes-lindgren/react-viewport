@@ -1,26 +1,25 @@
 import React, { forwardRef, ReactNode } from 'react'
 import { origin, Vec2 } from './linalg.ts'
-import { styleTransformTranslate } from './Viewport.tsx'
+import * as CssTransform from './cssTransform.tsx'
 
-export const Dot = forwardRef<
+export const Circle = forwardRef<
   HTMLDivElement,
   {
     color: string
-    radius?: number
-    style?: React.CSSProperties
-  }
->((props, ref) => (
+    radius: number
+  } & React.CSSProperties
+>(({ radius, ...style }, ref) => (
   <div
     ref={ref}
     style={{
-      width: props.radius ?? 10,
-      height: props.radius ?? 10,
-      borderColor: props.color,
+      width: radius ?? 10,
+      height: radius ?? 10,
+      borderColor: 'currentColor',
       borderStyle: 'solid',
       borderWidth: 2,
       borderRadius: '50%',
       transform: 'translate(-50%, -50%)',
-      ...props.style,
+      ...style,
     }}
   />
 ))
@@ -36,7 +35,7 @@ export const Absolute = forwardRef<
     ref={ref}
     style={{
       position: 'absolute',
-      transform: styleTransformTranslate(props.pos ?? origin),
+      transform: CssTransform.translate(props.pos ?? origin),
       zIndex: 1000,
       left: 0,
       top: 0,

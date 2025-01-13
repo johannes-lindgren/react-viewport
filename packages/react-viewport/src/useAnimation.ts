@@ -27,5 +27,5 @@ export const useAnimation = (update: (dt: number) => void) => {
     return () => {
       requestRef.current && cancelAnimationFrame(requestRef.current)
     }
-  }, [])
+  }, [update])
 }

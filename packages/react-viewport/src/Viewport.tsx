@@ -18,7 +18,6 @@ import {
   mult,
   mult2x3,
   neg,
-  origin,
   scale,
   scaleAffine,
   sub,
@@ -26,21 +25,16 @@ import {
   Vec2,
   vec2,
 } from './linalg.ts'
-import { Absolute, Dot } from './Absolute.tsx'
+import { Absolute, Circle } from './Absolute.tsx'
+import { useElementSizeRef } from './useElementSizeRef.tsx'
+import * as CssTransform from './cssTransform.tsx'
 
-type Transformation = {
-  // Position in WORLD coordinates, non-negated
+export type Camera = {
+  // Position in coordinates
   x: number
   y: number
+  // Zoom
   scale: number
-}
-
-export const styleTransformTranslate = (dr: Vec2) =>
-  `translate(${dr[0]}px, ${dr[1]}px)`
-
-export const styleTransformMat3x2 = (m: Mat2x3) => {
-  const arr = [m[0], m[1], m[3], m[4], m[2], m[5]]
-  return `matrix(${arr.join(', ')})`
 }
 
 export const GestureViewport: FunctionComponent<{
@@ -75,8 +69,8 @@ const Gesture: FunctionComponent<{
 type ViewportApi = {
   getScreenMat: () => Mat2x3
   getWorldMat: () => Mat2x3
-  getContentTransformation: () => Transformation
-  setContentTransform: (transformation: Transformation) => void
+  getContentTransformation: () => Camera
+  setContentTransform: (transformation: Camera) => void
 }
 
 const Viewport = forwardRef<
@@ -87,29 +81,9 @@ const Viewport = forwardRef<
 >((props, apiRef) => {
   const contentRef = useRef<HTMLDivElement>(null)
 
-  const viewportSizeRef = useRef<Vec2>(origin)
+  const viewportSizeRef = useElementSizeRef(contentRef)
 
-  useEffect(() => {
-    //   TODO do not allow skipping
-    const el = contentRef?.current
-    if (!el) {
-      return
-    }
-
-    const handleResize = () => {
-      console.log('resize')
-      viewportSizeRef.current = vec2(el.offsetWidth, el.offsetHeight)
-    }
-
-    const resizeObserver = new ResizeObserver(handleResize)
-    resizeObserver.observe(el)
-    handleResize()
-    return () => {
-      resizeObserver.disconnect()
-    }
-  }, [])
-
-  const cameraRef = useRef<Transformation>({
+  const cameraRef = useRef<Camera>({
     x: 0.0,
     y: 0.0,
     scale: 1.0,
@@ -130,21 +104,21 @@ const Viewport = forwardRef<
     })
     const mat = mult2x3(worldMat, viewMat)
 
-    const transformAttrMat = styleTransformMat3x2(mat)
+    const transformAttrMat = CssTransform.mat2x3(mat)
 
     if (!contentRef.current) {
       return
     }
     // TODO this is just for debugging
     if (cameraWorldRef.current) {
-      cameraWorldRef.current.style.transform = styleTransformTranslate([
+      cameraWorldRef.current.style.transform = CssTransform.translate([
         transformation.x,
         transformation.y,
       ])
     }
     // TODO this is just for debugging
     if (viewCenterRef.current) {
-      viewCenterRef.current.style.transform = styleTransformMat3x2(viewMat)
+      viewCenterRef.current.style.transform = CssTransform.mat2x3(viewMat)
     }
     contentRef.current.style.transform = transformAttrMat
   }
@@ -186,7 +160,17 @@ const Viewport = forwardRef<
       }}
     >
       <Absolute ref={viewCenterRef}>
-        <Dot color="red" radius={15} />
+        <Absolute>
+          <Circle color="red" radius={25} />
+        </Absolute>
+        <Absolute>
+          <Circle
+            color="red"
+            radius={3}
+            position="absolute"
+            backgroundColor="currentcolor"
+          />
+        </Absolute>
       </Absolute>
       <div
         id="content"
@@ -199,19 +183,7 @@ const Viewport = forwardRef<
       >
         {/*  DEBUG  */}
         <Absolute ref={cameraWorldRef}>
-          <Dot color="blue" radius={25} />
-        </Absolute>
-        <Absolute pos={[0, 0]}>
-          <Dot color="black" />
-        </Absolute>
-        <Absolute pos={[1000, 0]}>
-          <Dot color="black" />
-        </Absolute>
-        <Absolute pos={[0, 1000]}>
-          <Dot color="black" />
-        </Absolute>
-        <Absolute pos={[1000, 1000]}>
-          <Dot color="black" />
+          <Circle color="blue" radius={25} />
         </Absolute>
         {props.children}
       </div>
@@ -284,18 +256,18 @@ const useGestureContainer = (
   const gestureState = useRef<
     | {
         tag: 'pinch'
-        startTransform: Transformation
+        startTransform: Camera
         startWorld: Mat2x3
       }
     | {
         tag: 'wheel'
-        startTransform: Transformation
+        startTransform: Camera
         startWorld: Mat2x3
         clickScreenPos: Vec2
       }
     | {
         tag: 'mouseDown'
-        startTransform: Transformation
+        startTransform: Camera
         startWorld: Mat2x3
         clickScreenPos: Vec2
       }
@@ -332,7 +304,6 @@ const useGestureContainer = (
           return
         }
         const transformation = viewportApi.current.getContentTransformation()
-        console.log('onPinchStart', transformation)
         gestureState.current = {
           tag: 'pinch',
           startTransform: transformation,
